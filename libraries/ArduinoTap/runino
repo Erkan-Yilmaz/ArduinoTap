@@ -1,0 +1,267 @@
+#!/usr/bin/env perl
+
+use 5.10.0;
+use strict;
+use warnings;
+
+use Config::Properties;
+use Device::SerialPort;
+use File::Basename;
+use File::Temp qw(tempdir);
+use Pod::Usage;
+use Test::More;
+
+pod2usage( {
+    -exitval    => 1,
+    -verbose    => 99,
+    -sections   => 'SYNOPSIS|DESCRIPTION|ENVIRONMENT VARIABLES',
+} ) unless @ARGV == 1;
+
+my $sketch = $ARGV[0];
+my $sketch_name = basename($sketch);
+
+my $ARDUINO_REVISION = $ENV{ARDUINO_REVISION} || 100;
+my $ARDUINO_DIR = $ENV{ARDUINO_DIR} || '/usr/share/arduino';
+my $BOARD = $ENV{BOARD} || 'uno';
+my $PORT = $ENV{PORT_COM} || '/dev/ttyACM0';
+my $BAUDRATE = $ENV{BAUDRATE} || 9600;
+
+
+my $cfgfile = "$ARDUINO_DIR/hardware/arduino/boards.txt";
+open my $fh, '<', $cfgfile
+    or BAIL_OUT("Cannot open $cfgfile: $!");
+
+my $properties = Config::Properties->new();
+$properties->load($fh);
+close $fh;
+
+my $name = $properties->getProperty("${BOARD}.name");
+BAIL_OUT("Unknown board ${BOARD}") unless $name;
+note("Board ${name}");
+
+my $MCU = $properties->getProperty("${BOARD}.build.mcu");
+my $F_CPU = $properties->getProperty("${BOARD}.build.f_cpu");
+my $SPEED = $properties->getProperty("${BOARD}.upload.speed");
+my $PROTOCOL = $properties->getProperty("${BOARD}.upload.protocol");
+$PROTOCOL = 'stk500v1' if $PROTOCOL eq 'stk500';
+my $maxsize = $properties->getProperty("${BOARD}.upload.maximum_size");
+my $variant = $properties->getProperty("${BOARD}.build.variant", '');
+
+
+my $ARDUINO_CORE = "${ARDUINO_DIR}/hardware/arduino/cores/arduino";
+my $ARDUINO_VARIANT = "${ARDUINO_DIR}/hardware/arduino/variants/${variant}";
+my $BIN_DIR = '/usr/bin';
+my $CC = "${BIN_DIR}/avr-gcc";
+my $CPP = "${BIN_DIR}/avr-g++";
+my $AR = "${BIN_DIR}/avr-ar";
+my $OBJCOPY = "${BIN_DIR}/avr-objcopy";
+my $SIZE = "${BIN_DIR}/avr-size";
+my $AVRDUDE = "${ARDUINO_DIR}/hardware/tools/avrdude";
+my $AVRDUDE_CONF = "${ARDUINO_DIR}/hardware/tools/avrdude.conf";
+my $CWARN = 1 ? '-w' : '-Wall';
+my @CFLAGS = ('-g', '-Os', $CWARN, '-ffunction-sections', '-fdata-sections');
+my @CPPFLAGS = (@CFLAGS, '-fno-exceptions');
+my @LDFLAGS = ('-Os', '-Wl,--gc-sections');
+my @LDLIBS = ('-lm');
+my @DEFINES = ("-DF_CPU=${F_CPU}", "-DARDUINO=${ARDUINO_REVISION}");
+my @INCLUDES = ("-I${ARDUINO_CORE}");
+push @INCLUDES, "-I${ARDUINO_VARIANT}" if $variant;
+my @CC = ($CC, "-mmcu=${MCU}", @CFLAGS, @DEFINES, @INCLUDES);
+my @CPP = ($CPP, "-mmcu=${MCU}", @CPPFLAGS, @DEFINES, @INCLUDES);
+my @LD = ($CC, "-mmcu=${MCU}", @LDLIBS, @LDFLAGS);
+my @AVRDUDE = ($AVRDUDE, "-C${AVRDUDE_CONF}", '-q', '-q', "-p${MCU}", "-c${PROTOCOL}", "-P${PORT}", "-b${SPEED}", '-D');
+
+my $build_dir = tempdir( CLEANUP => 1 );
+
+sub build {
+    note("Building ... in ${build_dir}");
+    my @LIBS;
+    my @INCLUDES;
+
+    my $filename = "${build_dir}/${sketch_name}.cpp";
+    open my $ofh, '>', $filename
+        or BAIL_OUT("Cannot open $filename: $!");
+    my $header = ($ARDUINO_REVISION < 100) ? 'WProgram.h' : 'Arduino.h';
+    print $ofh <<"HEADER";
+#include "$header"
+
+#line 1 "$sketch"
+HEADER
+    open my $ifh, '<', $sketch
+        or BAIL_OUT("Cannot open $sketch: $!");
+    while (<$ifh>) {
+        print $ofh $_;
+        if (/#include\s+<(\S+)\.h>/) {;
+            my $lib = $1;
+            my $lib_dir = -d "../${lib}" ? "../${lib}" : "${ARDUINO_DIR}/libraries/${lib}";
+            push @LIBS, $lib_dir;
+            push @INCLUDES, "-I${lib_dir}";
+            push @INCLUDES, "-I${lib_dir}/utility" if -d "${lib_dir}/utility";
+        }
+    }
+    close $ifh;
+    close $ofh;
+
+    my $obj = "${build_dir}/${sketch_name}.o";
+    my @cmd = (@CPP, @INCLUDES, '-c', $filename, '-o', $obj);
+    system(@cmd) == 0
+        or BAIL_OUT("system @cmd failed: $?");
+    my @OBJS = ($obj);
+
+    my $CORE_LIB = "${build_dir}/core.a";
+    unlink($CORE_LIB);
+
+    for my $src (glob("${ARDUINO_CORE}/*.c")) {
+        my $basename = basename($src);
+        $obj = "${build_dir}/${basename}.o";
+        my @cmd = (@CC, '-c', $src, '-o', $obj);
+        system(@cmd) == 0
+            or BAIL_OUT("system @cmd failed: $?");
+        @cmd = ($AR, 'rcs', $CORE_LIB, $obj);
+        system(@cmd) == 0
+            or BAIL_OUT("system @cmd failed: $?");
+    }
+
+    for my $src (glob("${ARDUINO_CORE}/*.cpp")) {
+        my $basename = basename($src);
+        $obj = "${build_dir}/${basename}.o";
+        my @cmd = (@CPP, '-c', $src, '-o', $obj);
+        system(@cmd) == 0
+            or BAIL_OUT("system @cmd failed: $?");
+        @cmd = ($AR, 'rcs', $CORE_LIB, $obj);
+        system(@cmd) == 0
+            or BAIL_OUT("system @cmd failed: $?");
+    }
+
+    for my $lib_dir (@LIBS) {
+        for my $src (glob("${lib_dir}/*.c ${lib_dir}/utility/*.c")) {
+            my $basename = basename($src);
+            $obj = "${build_dir}/${basename}.o";
+            my @cmd = (@CC, '-c', $src, '-o', $obj);
+            system(@cmd) == 0
+                or BAIL_OUT("system @cmd failed: $?");
+            push @OBJS, $obj;
+        }
+        for my $src (glob("${lib_dir}/*.cpp ${lib_dir}/utility/*.cpp")) {
+            my $basename = basename($src);
+            $obj = "${build_dir}/${basename}.o";
+            my @cmd = (@CPP, '-c', $src, '-o', $obj);
+            system(@cmd) == 0
+                or BAIL_OUT("system @cmd failed: $?");
+            push @OBJS, $obj;
+        }
+    }
+
+    @cmd = (@LD, '-o', "${build_dir}/${sketch_name}.elf", @OBJS, $CORE_LIB, "-L${build_dir}");
+    system(@cmd) == 0
+        or BAIL_OUT("system @cmd failed: $?");
+
+    @cmd = ($OBJCOPY, '-Oihex', '-j.eeprom', '--set-section-flags=.eeprom=alloc,load', '--no-change-warnings', '--change-section-lma=.eeprom=0', "${build_dir}/${sketch_name}.elf", "${build_dir}/${sketch_name}.eep");
+    system(@cmd) == 0
+        or BAIL_OUT("system @cmd failed: $?");
+
+    @cmd = ($OBJCOPY, '-Oihex', '-R.eeprom', "${build_dir}/${sketch_name}.elf", "${build_dir}/${sketch_name}.hex");
+    system(@cmd) == 0
+        or BAIL_OUT("system @cmd failed: $?");
+
+    my $output = qx($SIZE --target=ihex ${build_dir}/${sketch_name}.hex);
+    my ($size) = $output =~ /\s+0\s+(\d+)\s+/;
+    note("Binary sketch size: ${size} bytes (of a ${maxsize} byte maximum)");
+    BAIL_OUT("Sketch too big") if $size > $maxsize;
+    note("Done building");
+}
+
+sub upload {
+    note("Uploading to board ...");
+    my @cmd = (@AVRDUDE, "-Uflash:w:${build_dir}/${sketch_name}.hex:i");
+    system(@cmd) == 0
+        or BAIL_OUT("system @cmd failed: $?");
+    note("Done uploading");
+}
+
+sub run {
+    note("Running on board ...");
+    my $port = new Device::SerialPort($PORT);
+    BAIL_OUT("Cannot open ${PORT}") unless $port;
+
+    $port->baudrate($BAUDRATE);
+    $port->read_const_time(5000); # ms
+
+    my $buf = '';
+    while (1) {
+        my ($cnt, $str) = $port->read(1);
+        last unless $cnt;
+        print $str;
+        $buf .= $str;
+        last if $buf =~ /# Done with ArduinoTap./;
+    }
+    print "\n";
+
+    $port->close();
+    note("Done running");
+}
+
+build();
+upload();
+run() if $BAUDRATE;
+
+__END__
+
+=head1 NAME
+
+runino - build/upload/run a sketch on Arduino board
+
+=head1 SYNOPSIS
+
+    runino sketch.ino
+
+or with C<prove>
+
+    prove --exec=runino tests/*/*.ino
+
+=head1 DESCRIPTION
+
+B<runino> allows to build a sketch, to upload it on an Arduino board,
+and to capture its output.
+
+=head1 ENVIRONMENT VARIABLES
+
+=over
+
+=item ARDUINO_DIR
+
+The default value is C</usr/share/arduino>.
+
+=item ARDUINO_REVISION
+
+The default value is C<100>.
+
+=item BOARD
+
+This value is used as entry in configuration file C<hardware/arduino/boards.txt>.
+The default value is C<uno>.
+
+=item PORT_COM
+
+The default value is C</dev/ttyACM0>.
+
+=item BAUDRATE
+
+Specify the baudrate used by the sketch for sending the TAP output.
+The default value is C<9600>. With the special value C<0>,
+the sketch is only built and uploaded, but not executed.
+
+=back
+
+=head1 DEPENDENCIES
+
+This script requires some modules from CPAN :
+
+   $ sudo cpan Config::Properties
+   $ sudo cpan Device::SerialPort
+
+=head1 BUGS & LIMITATIONS
+
+Tested on Ubuntu with an Uno board.
+
+=cut

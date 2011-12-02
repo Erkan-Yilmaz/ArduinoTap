@@ -1,0 +1,36 @@
+#######################################
+# Syntax Coloring Map For ArduinoTap
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+plan	KEYWORD2
+no_plan	KEYWORD2
+skip_all	KEYWORD2
+done_testing	KEYWORD2
+bail_out	KEYWORD2
+ok	KEYWORD2
+nok	KEYWORD2
+pass	KEYWORD2
+fail	KEYWORD2
+is	KEYWORD2
+isnt	KEYWORD2
+todo	KEYWORD2
+skip	KEYWORD2
+todo_skip	KEYWORD2
+skip_rest	KEYWORD2
+diag	KEYWORD2
+output	KEYWORD2
+failure_output	KEYWORD2
+is_passing	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
