@@ -6,12 +6,12 @@
 =head2 Introduction
 
 ArduinoTap is a C/C++ port of the Perl5 module
-L<Test::More|http://search.cpan.org/~mschwern/Test-Simple/> on Arduino.
+L<Test::More|http://search.cpan.org/~mschwern/Test-Simple/> on L<Arduino|http://arduino.cc/>.
 
 It uses the L<Test Anything Protocol|http://en.wikipedia.org/wiki/Test_Anything_Protocol> as output,
 that allows a compatibility with the Perl QA ecosystem.
 For example, L<prove|http://search.cpan.org/~andya/Test-Harness/bin/prove> a basic CLI,
-or L<Smolder|http://search.cpan.org/~wonko/Smolder/> a Web-based Smoke Test Aggregator Server.
+or L<Smolder|http://search.cpan.org/~wonko/Smolder/> a web-based smoke test aggregator server.
 
 It allows a simple and efficient way to write tests (without OO style).
 
@@ -21,7 +21,7 @@ An additional script C<runino> allows to build a sketch, to upload it on an Ardu
 to capture its output. So, it is possible to use a continuous integration server which run
 a test suite containing many sketches.
 
-    prove --exec=runino examples/*ok/*.ino examples/is*/*.ino
+    $ prove --exec=runino examples/*ok/*.ino examples/is*/*.ino
 
 =head2 Bibliography
 
@@ -37,9 +37,7 @@ ArduinoTap source can be downloaded from L<GitHub|http://github.com/fperrad/Ardu
 
 =head2 Installation
 
-The easiest way to install ArduinoTap is :
-
-    make install
+    $ sudo make install
 
 =head2 Copyright and License
 

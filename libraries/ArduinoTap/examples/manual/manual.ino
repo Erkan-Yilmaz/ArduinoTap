@@ -13,5 +13,5 @@ void loop() {
   is(1 + 1, 2, "addition");
   done_testing();
 
-  for (;;); // DONT LOOP
+  for (;;); // DON'T LOOP
 }
