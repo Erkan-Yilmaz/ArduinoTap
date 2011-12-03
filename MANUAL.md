@@ -1,13 +1,15 @@
 
-=pod
+MANUAL
+======
 
-=head1 MANUAL
 
-=head2 Writting Tests
+Writting Tests
+--------------
 
-See the directory C<ArduinoTap/examples>.
+See `libraries/ArduinoTap/examples`.
 
-=head2 Running Tests
+Running Tests
+-------------
 
     $ cat examples/manual/manual.ino
     #include <ArduinoTap.h>
@@ -28,7 +30,7 @@ See the directory C<ArduinoTap/examples>.
       for (;;); // DON'T LOOP
     }
 
-With C<runino> :
+With `runino` :
 
     $ runino examples/manual/manual.ino
     # Board Arduino Uno
@@ -47,7 +49,7 @@ With C<runino> :
     # Done with ArduinoTap.
     # Done running
 
-Now, with C<prove> :
+Now, with `prove` :
 
     $ prove --exec=runino examples/manual/manual.ino
     examples/manual/manual.ino .. ok
@@ -55,7 +57,7 @@ Now, with C<prove> :
     Files=1, Tests=5, 10 wallclock secs ( 0.03 usr  0.09 sys +  1.00 cusr  1.89 csys =  3.01 CPU)
     Result: PASS
 
-If your continuous integration tool (for example, L<Jenkins|http://jenkins-ci.org/>)
+If your continuous integration tool (for example, [Jenkins](http://jenkins-ci.org/))
 requires the JUnix XML format.
 
     $ prove --formatter=TAP::Formatter::JUnit --exec=runino examples/manual/manual.ino
@@ -98,7 +100,7 @@ If your results must be stored first, and processed after.
     Files=1, Tests=5,  0 wallclock secs ( 0.02 usr +  0.07 sys =  0.09 CPU)
     Result: PASS
 
-A L<Smolder|http://search.cpan.org/~wonko/Smolder/> server aggregates test reports sent
+A [Smolder](http://search.cpan.org/~wonko/Smolder/) server aggregates test reports sent
 by various submittors which could work on various hosts, with various Arduino boards.
 
     $ prove --archive=test_report.tar.gz --exec=runino examples/manual/manual.ino
@@ -112,4 +114,3 @@ by various submittors which could work on various hosts, with various Arduino bo
         -F "report_file=@test_report.tar.gz" \
         http://a.smolder.org/app/public_projects/process_add_report/1
 
-=cut

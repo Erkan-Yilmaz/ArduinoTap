@@ -14,8 +14,6 @@ uninstall:
 	rm -f $(MAN_DIR)/man1/runino.1.gz
 
 pod:
-	podchecker README.pod
-	podchecker MANUAL.pod
 	podchecker libraries/ArduinoTap/runino
 
 man:
