@@ -27,6 +27,7 @@ Bibliography
 ------------
 
 * Ian Langworth, chromatic, [Perl Testing](http://oreilly.com/catalog/9780596100926) O'Reilly, 2005
+* James W. Grenning, [Test Driven Development for Embedded C](http://pragprog.com/book/jgade/test-driven-development-for-embedded-c) The Pragmatic Bookshelf, 2009
 
 Download
 --------
