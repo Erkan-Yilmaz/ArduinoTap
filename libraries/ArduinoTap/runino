@@ -85,6 +85,9 @@ sub build {
     print $ofh <<"HEADER";
 #include "$header"
 
+extern void setup(void);
+extern void loop(void);
+
 #line 1 "$sketch"
 HEADER
     open my $ifh, '<', $sketch
