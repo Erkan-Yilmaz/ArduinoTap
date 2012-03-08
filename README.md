@@ -18,7 +18,7 @@ It allows a simple and efficient way to write tests (without OO style).
 Some tests could be marked as TODO or skipped.
 
 An additional script _runino_ allows to build a sketch, to upload it on an Arduino board, and
-to capture its output. So, it is possible to use a continuous integration server which run
+to capture its output. So, it is possible to use a continuous integration server which runs
 a test suite containing many sketches.
 
     $ prove --exec=runino examples/*ok/*.ino examples/is*/*.ino

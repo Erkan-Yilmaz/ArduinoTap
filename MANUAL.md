@@ -3,7 +3,7 @@ MANUAL
 ======
 
 
-Writting Tests
+Writing Tests
 --------------
 
 See `libraries/ArduinoTap/examples`.
